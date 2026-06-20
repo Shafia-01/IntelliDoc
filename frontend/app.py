@@ -337,7 +337,7 @@ def main():
                     import hashlib as _hl
                     safe_key = _hl.md5(file['name'].encode()).hexdigest()[:8]
                     if st.button(f"Remove", key=f"remove_{safe_key}"):
-                        st.session_state.uploaded_files.pop(i)
+                        st.session_state.uploaded_files = [f for f in st.session_state.uploaded_files if f['name'] != file['name']]
                         st.rerun()
 
         
@@ -398,8 +398,10 @@ def main():
         success, result = ask_question(query, model)
         
         if success:
-            answer_text = result.get("answer", "No answer available")
-            sources = result.get("sources", [])
+            # Backend returns {"query": query, "answer": {"answer": answer_text, "sources": sources_list}}
+            answer_data = result.get("answer", {})
+            answer_text = answer_data.get("answer", "No answer available")
+            sources = answer_data.get("sources", [])
             if sources:
                 answer_text += f"\n\n*Sources: {', '.join(sources)}*"
             st.session_state.messages.append({

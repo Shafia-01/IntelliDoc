@@ -201,6 +201,9 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # Optional: Override the default Gemini model
 GEMINI_MODEL=gemini-2.5-flash
+
+# Optional: Allowed CORS origins (comma-separated list)
+ALLOWED_ORIGINS=http://localhost:8501
 ```
 
 | Variable | Required | Description |
@@ -208,6 +211,7 @@ GEMINI_MODEL=gemini-2.5-flash
 | `GROQ_API_KEY` | Required for Groq | Grab from [console.groq.com](https://console.groq.com) |
 | `GEMINI_API_KEY` | Required for Gemini | Grab from [aistudio.google.com](https://aistudio.google.com) |
 | `GEMINI_MODEL` | Optional | Override the default model (defaults to `gemini-2.5-flash`) |
+| `ALLOWED_ORIGINS` | Optional | Comma-separated list of allowed CORS origins (defaults to `http://localhost:8501`) |
 
 *Note: The backend starts successfully with only one of the keys present. If a model is chosen whose key is missing, an informative HTTP 400 error is returned.*
 
@@ -228,7 +232,8 @@ streamlit run app.py --server.port 8501
 Access the application at: `http://localhost:8501`  
 Interactive API Swagger docs: `http://localhost:8000/docs`  
 
-⚠️ **Important**: The database is stored in the backend server memory. Do not run the backend with `--reload` in development, and avoid restarting the server, as it wipes all ingested document chunks. If the backend is restarted, you must re-upload/re-ingest your documents.
+> [!WARNING]
+> The database is stored in the backend server memory. Do NOT run the backend with `--reload` (e.g. `uvicorn main:app --reload`). Because the vector store is in-memory, the auto-reload trigger will completely wipe the database every time a file changes in the workspace. Avoid restarting the server, as it wipes all ingested document chunks. If the backend is restarted, you must re-upload/re-ingest your documents.
 
 ---
 

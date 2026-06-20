@@ -40,6 +40,10 @@ def get_llm(model_name: str):
             raise ValueError(f"Failed to initialize model '{model_name}': {e}")
     return _llm_cache[model_name]
 
+# Validate that at least one API key is present at startup
+if not os.getenv("GROQ_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+    raise RuntimeError("❌ Neither GROQ_API_KEY nor GEMINI_API_KEY is set in environment variables. At least one API key must be configured to start the server.")
+
 default_llm = None
 for model in ["groq", "gemini"]:
     try:
@@ -50,14 +54,12 @@ for model in ["groq", "gemini"]:
 
 qa_engine = QAEngine(vectorstore=vectorstore, llm=default_llm)
 
-# Startup health message
+# Startup health message - check environment keys directly to avoid eager instantiation
 available = []
-for m in ["groq", "gemini"]:
-    try:
-        get_llm(m)
-        available.append(m)
-    except Exception:
-        pass
+if os.getenv("GROQ_API_KEY"):
+    available.append("groq")
+if os.getenv("GEMINI_API_KEY"):
+    available.append("gemini")
 print(f"[STARTUP] Available models: {available}")
 
 
