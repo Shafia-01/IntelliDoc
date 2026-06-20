@@ -1,6 +1,13 @@
 __pycache__/
 .env
 .venv
-data/
+/data/*
+!/data/uploads/
+!/data/assets/
+data/uploads/*
+data/assets/*
+!data/uploads/.gitkeep
+!data/assets/.gitkeep
+
 
 

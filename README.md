@@ -71,10 +71,12 @@ IntelliDoc/
    ```
 
 4. **Start the backend server**
-   ```bash
-   cd backend
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
+    ```bash
+    cd backend
+    uvicorn main:app --host 127.0.0.1 --port 8000
+    ```
+    *Note: Do not use `--reload` in development if you need your knowledge base to persist between code changes, as it resets the in-memory vectorstore.*
+
 
 5. **Start the frontend** (in a new terminal)
    ```bash

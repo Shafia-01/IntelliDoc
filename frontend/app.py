@@ -295,10 +295,11 @@ def main():
         
         uploaded_files = st.file_uploader(
             "**Choose documents**",
-            type=['pdf', 'doc', 'docx', 'txt', 'md'],
+            type=['pdf', 'docx', 'txt', 'md'],
             accept_multiple_files=True,
             help="**Upload PDF, Word documents, or text files**"
         )
+
         
         if uploaded_files:
             if st.button("Upload Documents", type="primary"):
@@ -333,9 +334,12 @@ def main():
                     st.write(f"**Size:** {file['size']:,} bytes")
                     st.write(f"**Type:** {file['type']}")
                     
-                    if st.button(f"Remove", key=f"remove_{i}"):
+                    import hashlib as _hl
+                    safe_key = _hl.md5(file['name'].encode()).hexdigest()[:8]
+                    if st.button(f"Remove", key=f"remove_{safe_key}"):
                         st.session_state.uploaded_files.pop(i)
                         st.rerun()
+
         
         st.divider()
 
@@ -394,11 +398,16 @@ def main():
         success, result = ask_question(query, model)
         
         if success:
+            answer_text = result.get("answer", "No answer available")
+            sources = result.get("sources", [])
+            if sources:
+                answer_text += f"\n\n*Sources: {', '.join(sources)}*"
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": result.get("answer", "No answer available"),
+                "content": answer_text,
                 "timestamp": time.time()
             })
+
         else:
             st.session_state.messages.append({
                 "role": "error",

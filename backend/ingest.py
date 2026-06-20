@@ -28,12 +28,13 @@ def get_document_name(path: str, doc_content: Dict) -> str:
     
     if doc_content.get('full_text'):
         lines = doc_content['full_text'].strip().split('\n')
-        for line in lines[:5]:  # Check first 5 lines
+        for line in lines[:10]:  # Check first 10 lines
             clean_line = line.strip()
             if clean_line and len(clean_line) > 3 and len(clean_line) < 100:
-                if not clean_line.lower().startswith(('page ', 'chapter ', 'section ')):
+                if not clean_line.lower().startswith(('page ', 'chapter ', 'section ', '[page')):
                     print(f"[DEBUG] Using content-based title: {clean_line}")
                     return clean_line
+
     
     print(f"[DEBUG] Using filename-based title: {base_name}")
     return base_name
@@ -156,6 +157,22 @@ def extract_html(path: str) -> Dict:
     
     return doc_dict
 
+def extract_text_file(path: str) -> Dict:
+    print(f"[TEXT] Opening {path}...")
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+    doc_id = hashlib.sha1(path.encode()).hexdigest()[:10]
+    doc_dict = {
+        "id": doc_id,
+        "path": path,
+        "title": "",
+        "pages": [],
+        "full_text": text,
+        "tables": [],
+    }
+    doc_dict["title"] = get_document_name(path, doc_dict)
+    return doc_dict
+
 def extract_document(path: str) -> Dict:
     if not os.path.exists(path):
         raise FileNotFoundError(f"File not found: {path}")
@@ -167,10 +184,13 @@ def extract_document(path: str) -> Dict:
         return extract_docx(path)
     elif ext in [".html", ".htm"]:
         return extract_html(path)
+    elif ext in [".txt", ".md"]:
+        return extract_text_file(path)
     else:
         raise ValueError(f"Unsupported format: {ext}")
 
-def chunk_text(text: str, chunk_chars: int = 1500, overlap: int = 200, max_chunks: int = 500):
+
+def chunk_text(text: str, doc_id: str = "doc", chunk_chars: int = 1500, overlap: int = 200, max_chunks: int = 500):
     print(f"[Chunking] Splitting text into chunks (size={chunk_chars}, overlap={overlap})...")
     if not text or len(text.strip()) == 0:
         print("[Chunking] Warning: Empty text received.")
@@ -184,11 +204,11 @@ def chunk_text(text: str, chunk_chars: int = 1500, overlap: int = 200, max_chunk
 
     while start < doc_len and chunk_id < max_chunks:
         end = min(start + chunk_chars, doc_len)
-        chunk_text = text[start:end]
+        chunk_text_str = text[start:end]
 
         chunks.append({
-            "id": f"chunk_{chunk_id}",
-            "text": chunk_text,
+            "id": f"{doc_id}_chunk_{chunk_id}",
+            "text": chunk_text_str,
             "meta": {"start": start, "end": end},
         })
 
@@ -209,7 +229,8 @@ def extract_documents(file_paths: List[str]) -> List[Dict]:
             print(f"[DEBUG] Document title: '{doc['title']}'")
             print(f"[DEBUG] Full text length: {len(doc['full_text'])} characters")
             
-            chunks = chunk_text(doc["full_text"], chunk_chars=1500, overlap=200)
+            chunks = chunk_text(doc["full_text"], doc_id=doc["id"], chunk_chars=1500, overlap=200)
+
             
             for c in chunks:
                 c["meta"].update({

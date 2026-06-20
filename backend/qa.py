@@ -17,10 +17,31 @@ class LLMInterface:
         raise NotImplementedError
 
 class GeminiModel(LLMInterface):
-    def __init__(self, embedding_model="models/text-embedding-004", llm_model="gemini-1.5-flash"):
+    def __init__(self, embedding_model="models/text-embedding-004", llm_model=None):
         self.genai = get_gemini_client()
         self.embedding_model = embedding_model
-        self.llm_model = llm_model
+        
+        # Supported models as requested by the user
+        allowed_models = [
+            "gemini-2.5-flash",
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash-lite",
+            "gemini-3-flash-preview",
+            "gemma-4-31b-it",
+            "gemma-4-26b-a4b-it"
+        ]
+        
+        env_model = os.getenv("GEMINI_MODEL")
+        if llm_model:
+            self.llm_model = llm_model
+        elif env_model in allowed_models:
+            self.llm_model = env_model
+        elif env_model:
+            self.llm_model = env_model
+        else:
+            self.llm_model = "gemini-2.5-flash"
+
 
     def get_embeddings(self, text_list: List[str]) -> List[List[float]]:
         return [self.genai.embed_content(model=self.embedding_model, content=t)["embedding"] for t in text_list]
@@ -32,7 +53,7 @@ class GeminiModel(LLMInterface):
         return resp.text
 
 class GroqModel(LLMInterface):
-    def __init__(self, llm_model="groq/compound"):
+    def __init__(self, llm_model="llama3-8b-8192"):
         self.client = get_groq_client()
         self.llm_model = llm_model
 
@@ -64,12 +85,21 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict]:
 
 def download_pdf(url: str, save_dir="data/assets") -> str:
     os.makedirs(save_dir, exist_ok=True)
-    response = requests.get(url)
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        raise RuntimeError(f"Timeout downloading PDF from {url}")
+    except requests.exceptions.HTTPError as e:
+        raise RuntimeError(f"HTTP error downloading PDF: {e}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Failed to download PDF: {e}")
     file_hash = hashlib.sha1(url.encode()).hexdigest()[:10]
     file_path = os.path.join(save_dir, f"{file_hash}.pdf")
     with open(file_path, "wb") as f:
         f.write(response.content)
     return file_path
+
 
 class QAEngine:
     def __init__(self, vectorstore, llm: LLMInterface):
@@ -134,7 +164,11 @@ Answer:
 """
                 answer = self.llm.generate_text(prompt)
                 answers[doc_id] = answer
-            return {"answers": answers, "sources": list(docs_dict.keys())}
+            formatted = "\n\n".join(
+                f"**From '{doc_id}':**\n{ans}" for doc_id, ans in answers.items()
+            )
+            return {"answer": formatted, "sources": list(docs_dict.keys())}
+
 
     def search_and_list_arxiv(self, query: str, max_papers: int = 5) -> List[Dict]:
         papers = search_arxiv(query, max_results=max_papers)
@@ -161,31 +195,4 @@ Answer:
             all_chunks.extend(chunks)
         if all_chunks:
             self.add_documents(all_chunks)
-        return len(all_chunks)
-
-    def interactive_arxiv_qa(self, query: str, max_papers: int = 5, top_k: int = 10):
-        papers = self.search_and_list_arxiv(query, max_papers=max_papers)
-
-        download_choice = input("Do you want to download these papers as PDFs? (yes/no): ").strip().lower()
-        downloaded_papers = []
-        if download_choice == "yes":
-            print("[Arxiv] Downloading papers...")
-            for paper in papers:
-                if not paper.get("pdf_url"):
-                    continue
-                pdf_path = download_pdf(paper["pdf_url"])
-                paper["local_path"] = pdf_path
-                downloaded_papers.append(paper)
-            print(f"[Arxiv] Downloaded {len(downloaded_papers)} papers to 'data/assets/'.")
-        else:
-            print("[Arxiv] Skipped downloading.")
-
-        ingest_choice = input("Do you want to ingest the downloaded papers into vectorstore? (yes/no): ").strip().lower()
-        if ingest_choice == "yes" and downloaded_papers:
-            print("[Arxiv] Ingesting downloaded papers...")
-            self.ingest_papers(downloaded_papers)
-            return self.ask(query, top_k=top_k)
-        elif ingest_choice == "yes" and not downloaded_papers:
-            return "No papers were downloaded, so ingestion is not possible."
-        else:
-            return "Skipped ingestion. You can still read/download the PDFs manually."
+        return len(all_chunks)
